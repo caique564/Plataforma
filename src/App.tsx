@@ -12,7 +12,7 @@ import {
   gradeEssayQuestion, 
   analyzePerformance 
 } from "./lib/api";
-import WelcomeScreen from "./components/WelcomeScreen";
+import WelcomeScreen, { StudyOptions } from "./components/WelcomeScreen";
 import { 
   BookOpen, 
   MessageSquare, 
@@ -153,6 +153,7 @@ export default function App() {
   const [difficulty, setDifficulty] = useState<"fácil" | "médio" | "difícil" | "escaldante">("médio");
   const [questionType, setQuestionType] = useState<"closed" | "mista">("closed");
   const [numOpenQuestions, setNumOpenQuestions] = useState<number>(1);
+  const [detectImprovementsEnabled, setDetectImprovementsEnabled] = useState<boolean>(true);
   
   const [evaluationQuestions, setEvaluationQuestions] = useState<EvaluationQuestion[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(0);
@@ -192,12 +193,50 @@ export default function App() {
   }, [darkMode]);
 
   // Handle study onboarding
-  const handleStartStudy = async (subject: string, level: StudyLevel) => {
+  const handleStartStudy = async (subject: string, level: StudyLevel, options?: StudyOptions) => {
     setLoading(true);
     try {
-      const explanation = await explainSubject(subject, level);
+      // 1. Pre-configure states from WelcomeScreen options
+      if (options) {
+        setNumQuestions(options.numQuestions);
+        setDifficulty(options.difficulty);
+        setQuestionType(options.questionType);
+        setNumOpenQuestions(options.numOpenQuestions);
+        setDetectImprovementsEnabled(options.detectImprovements);
+      }
+
+      // 2. Fetch explanation and evaluation in parallel if requested!
+      const activeOpenQuestions = options && options.questionType === "closed" ? 0 : (options?.numOpenQuestions || 0);
+      
+      const explainPromise = explainSubject(subject, level);
+      const evalPromise = (options && options.createQuestions)
+        ? generateEvaluation({
+            subject,
+            level,
+            numQuestions: options.numQuestions,
+            difficulty: options.difficulty,
+            numOpenQuestions: activeOpenQuestions
+          })
+        : Promise.resolve(null);
+
+      const [explanation, questions] = await Promise.all([explainPromise, evalPromise]);
       setExplanationText(explanation);
       setSetup({ subject, level });
+      
+      if (questions && questions.length > 0) {
+        setEvaluationQuestions(questions);
+        setCurrentQuestionIndex(0);
+        setAttempts({});
+        setCurrentFeedback(null);
+        setSelectedClosedOption(null);
+        setWrittenOpenAnswer("");
+        setEvalConfigured(true);
+        setEvalFinished(false);
+        setDiagnosis(null);
+      } else {
+        setEvalConfigured(false);
+        setEvaluationQuestions([]);
+      }
       
       // Auto-populate chat with welcome message
       const welcomeMsg: ChatMessage = {
@@ -408,8 +447,28 @@ export default function App() {
         };
       });
 
-      const analysis = await analyzePerformance(setup.subject, setup.level, performanceData);
-      setDiagnosis(analysis);
+      if (detectImprovementsEnabled) {
+        const analysis = await analyzePerformance(setup.subject, setup.level, performanceData);
+        setDiagnosis(analysis);
+      } else {
+        // Create local calculated diagnosis
+        const totalScore = Object.values(attempts).reduce((acc, curr) => acc + curr.score, 0);
+        const avgScore = evaluationQuestions.length > 0 ? Math.round(totalScore / evaluationQuestions.length) : 0;
+        
+        const correctSubtopics = performanceData.filter(p => p.status === "correct").map(p => p.subTopic);
+        const incorrectSubtopics = performanceData.filter(p => p.status !== "correct").map(p => p.subTopic);
+        
+        setDiagnosis({
+          overallSummary: `Você concluiu o teste com sucesso! Sua média de acertos foi de ${avgScore}%. Se desejar uma análise profunda baseada em IA, certifique-se de marcar a opção 'Detectar Pontos de Melhoria' no início da trilha.`,
+          strengths: correctSubtopics.length > 0 ? Array.from(new Set(correctSubtopics)) : ["Domínio geral do assunto"],
+          reforzamento: incorrectSubtopics.length > 0 ? Array.from(new Set(incorrectSubtopics)) : ["Nenhum ponto crítico de atenção urgente."],
+          actionPlan: [
+            "Revise as correções de cada questão onde houve erros para fixar os conceitos.",
+            "Use o chat explicativo com o tutor de estudos para tirar dúvidas específicas.",
+            "Faça uma nova rodada de simulados ajustando a quantidade ou dificuldade das questões."
+          ]
+        });
+      }
     } catch (error: any) {
       alert("Erro ao realizar o diagnóstico de desempenho: " + error.message);
     } finally {
