@@ -1,0 +1,6 @@
+{
+  "name": "Plataforma de Estudos Inteligente",
+  "description": "Uma plataforma completa para estudos utilizando Inteligência Artificial para gerar explicações personalizadas e avaliações interativas de desempenho.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
