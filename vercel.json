@@ -1,0 +1,29 @@
+{
+  "version": 2,
+  "rewrites": [
+    {
+      "source": "/api/gemini/explain",
+      "destination": "/api/gemini/explain.ts"
+    },
+    {
+      "source": "/api/gemini/chat",
+      "destination": "/api/gemini/chat.ts"
+    },
+    {
+      "source": "/api/gemini/generate-evaluation",
+      "destination": "/api/gemini/generate-evaluation.ts"
+    },
+    {
+      "source": "/api/gemini/grade-essay",
+      "destination": "/api/gemini/grade-essay.ts"
+    },
+    {
+      "source": "/api/gemini/analyze-performance",
+      "destination": "/api/gemini/analyze-performance.ts"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
